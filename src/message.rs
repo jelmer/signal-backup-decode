@@ -28,15 +28,19 @@ impl Message {
 			},
 			date_sent: if let rusqlite::types::Value::Integer(x) = sql_parameter[5] {
 				// omit nanoseconds here ...
-				chrono::NaiveDateTime::from_timestamp(x / 1000, 0)
+				chrono::DateTime::from_timestamp(x / 1000, 0)
+					.map(|dt| dt.naive_utc())
+					.unwrap_or_else(|| chrono::NaiveDateTime::default())
 			} else {
-				chrono::NaiveDateTime::from_timestamp(0, 0)
+				chrono::NaiveDateTime::default()
 			},
 			date_received: if let rusqlite::types::Value::Integer(x) = sql_parameter[6] {
 				// omit nanoseconds here ...
-				chrono::NaiveDateTime::from_timestamp(x / 1000, 0)
+				chrono::DateTime::from_timestamp(x / 1000, 0)
+					.map(|dt| dt.naive_utc())
+					.unwrap_or_else(|| chrono::NaiveDateTime::default())
 			} else {
-				chrono::NaiveDateTime::from_timestamp(0, 0)
+				chrono::NaiveDateTime::default()
 			},
 		}
 	}
