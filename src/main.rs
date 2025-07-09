@@ -118,6 +118,7 @@ fn main() {
 		config.log_level,
 		simplelog::Config::default(),
 		simplelog::TerminalMode::Mixed,
+		simplelog::ColorChoice::Auto,
 	)
 	.unwrap();
 

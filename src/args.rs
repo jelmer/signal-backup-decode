@@ -1,7 +1,7 @@
 // imports
 use anyhow::anyhow;
 use anyhow::Context;
-use clap::{crate_authors, crate_description, crate_name, crate_version};
+use clap::{Arg, ArgGroup, Command};
 use std::io::BufRead;
 
 /// Config struct
@@ -29,107 +29,106 @@ pub struct Config {
 impl Config {
 	/// Create new config object
 	pub fn new() -> Result<Self, anyhow::Error> {
-		let matches = clap::App::new(crate_name!())
-			.version(crate_version!())
-			.about(crate_description!())
-			.author(crate_authors!())
+		let matches = Command::new(env!("CARGO_PKG_NAME"))
+			.version(env!("CARGO_PKG_VERSION"))
+			.about(env!("CARGO_PKG_DESCRIPTION"))
+			.author(env!("CARGO_PKG_AUTHORS"))
 			.arg(
-				clap::Arg::with_name("input-file")
+				Arg::new("input-file")
 					.help("Sets the input file to use")
-					.takes_value(true)
 					.value_name("INPUT")
 					.required(true)
 					.index(1),
 			)
 			.arg(
-				clap::Arg::with_name("output-path")
+				Arg::new("output-path")
 					.help("Directory to save output to. If not given, input file directory is used")
 					.long("output-path")
-					.short("o")
-					.takes_value(true)
+					.short('o')
 					.value_name("FOLDER"),
 			)
 			.arg(
-				clap::Arg::with_name("output-type")
+				Arg::new("output-type")
 					.help("Output type, either RAW, CSV or NONE")
 					.long("output-type")
-					.short("t")
-					.takes_value(true)
+					.short('t')
 					.value_name("TYPE"),
 			)
 			.arg(
-				clap::Arg::with_name("log-level")
+				Arg::new("log-level")
 					.help("Verbosity level, either DEBUG, INFO, WARN, or ERROR")
 					.long("verbosity")
-					.short("v")
-					.takes_value(true)
+					.short('v')
 					.value_name("LEVEL"),
 			)
 			.arg(
-				clap::Arg::with_name("force-overwrite")
+				Arg::new("force-overwrite")
 					.help("Overwrite existing output files")
 					.long("force")
-					.short("f"),
+					.short('f')
+					.action(clap::ArgAction::SetTrue),
 			)
 			.arg(
-				clap::Arg::with_name("no-verify-mac")
+				Arg::new("no-verify-mac")
 					.help("Do not verify the HMAC of each frame in the backup")
-					.long("no-verify-mac"),
+					.long("no-verify-mac")
+					.action(clap::ArgAction::SetTrue),
 			)
 			.arg(
-				clap::Arg::with_name("no-in-memory-db")
+				Arg::new("no-in-memory-db")
 					.help("Do not use in memory sqlite database. Database is immediately created on disk (only considered with output type RAW).")
-					.long("no-in-memory-db"),
+					.long("no-in-memory-db")
+					.action(clap::ArgAction::SetTrue),
 			)
 			.arg(
-				clap::Arg::with_name("password-string")
+				Arg::new("password-string")
 					.help("Backup password (30 digits, with or without spaces)")
 					.long("password")
-					.takes_value(true)
 					.value_name("PASSWORD")
-					.short("p"),
+					.short('p'),
 			)
 			.arg(
-				clap::Arg::with_name("password-file")
+				Arg::new("password-file")
 					.help("File to read the backup password from")
 					.long("password-file")
-					.takes_value(true)
 					.value_name("FILE"),
 			)
 			.arg(
-				clap::Arg::with_name("password-command")
+				Arg::new("password-command")
 					.help("Read backup password from stdout from COMMAND")
 					.long("password-command")
-					.takes_value(true)
 					.value_name("COMMAND"),
 			)
 			.group(
-				clap::ArgGroup::with_name("password")
-					.args(&["password-string", "password-file", "password-command"])
+				ArgGroup::new("password")
+					.args(["password-string", "password-file", "password-command"])
 					.required(true)
 					.multiple(false),
 			)
 			.get_matches();
 
 		// input file handling
-		let input_file = std::path::PathBuf::from(matches.value_of("input-file").unwrap());
+		let input_file = std::path::PathBuf::from(matches.get_one::<String>("input-file").unwrap());
 
 		// output path handling
-		let output_path = std::path::PathBuf::from(matches.value_of("output-path").unwrap_or({
-			input_file
-				.file_stem()
-				.unwrap()
-				.to_str()
-				.context("output-path is not given and path to input file could not be read.")?
-		}));
+		let output_path = std::path::PathBuf::from(
+			matches
+				.get_one::<String>("output-path")
+				.map(|s| s.as_str())
+				.unwrap_or({
+					input_file.file_stem().unwrap().to_str().context(
+						"output-path is not given and path to input file could not be read.",
+					)?
+				}),
+		);
 
 		// password handling
 		let mut password = {
-			if matches.is_present("password-string") {
-				String::from(matches.value_of("password-string").unwrap())
-			} else if matches.is_present("password-file") {
+			if matches.contains_id("password-string") {
+				String::from(matches.get_one::<String>("password-string").unwrap())
+			} else if matches.contains_id("password-file") {
 				let password_file = std::io::BufReader::new(
-					std::fs::File::open(matches.value_of("password-file").unwrap())
+					std::fs::File::open(matches.get_one::<String>("password-file").unwrap())
 						.context("Unable to open password file")?,
 				);
 				password_file
@@ -137,11 +136,11 @@ impl Config {
 					.next()
 					.context("Password file is empty")?
 					.context("Unable to read from password file")?
-			} else if matches.is_present("password-command") {
+			} else if matches.contains_id("password-command") {
 				let shell = std::env::var("SHELL").context("Could not determine current shell")?;
 				let output = std::process::Command::new(shell)
 					.arg("-c")
-					.arg(matches.value_of("password-command").unwrap())
+					.arg(matches.get_one::<String>("password-command").unwrap())
 					.output()
 					.context("Failed to execute password command")?;
 
@@ -169,7 +168,7 @@ impl Config {
 		}
 
 		// verbosity handling
-		let log_level = if let Some(x) = matches.value_of("log-level") {
+		let log_level = if let Some(x) = matches.get_one::<String>("log-level") {
 			match x.to_lowercase().as_str() {
 				"debug" => log::LevelFilter::Debug,
 				"info" => log::LevelFilter::Info,
@@ -182,7 +181,7 @@ impl Config {
 		};
 
 		// determine output type
-		let output_type = if let Some(x) = matches.value_of("output-type") {
+		let output_type = if let Some(x) = matches.get_one::<String>("output-type") {
 			match x.to_lowercase().as_str() {
 				"none" => crate::output::SignalOutputType::None,
 				"raw" => crate::output::SignalOutputType::Raw,
@@ -197,11 +196,11 @@ impl Config {
 			path_input: input_file,
 			path_output: output_path,
 			password,
-			verify_mac: !matches.is_present("no_verify_mac"),
+			verify_mac: !matches.get_flag("no-verify-mac"),
 			log_level,
-			force_overwrite: matches.is_present("force-overwrite"),
+			force_overwrite: matches.get_flag("force-overwrite"),
 			output_type,
-			output_raw_db_in_memory: !matches.is_present("no-in-memory-db"),
+			output_raw_db_in_memory: !matches.get_flag("no-in-memory-db"),
 		})
 	}
 }

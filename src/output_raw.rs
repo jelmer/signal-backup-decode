@@ -16,7 +16,7 @@ pub struct SignalOutputRaw {
 	count_sticker: usize,
 	count_avatar: usize,
 	written_frames: usize,
-	created_files: std::boxed::Box<std::collections::HashSet<std::path::PathBuf>>
+	created_files: std::boxed::Box<std::collections::HashSet<std::path::PathBuf>>,
 }
 
 impl SignalOutputRaw {
@@ -83,7 +83,7 @@ impl SignalOutputRaw {
 			count_avatar: 0,
 			// we set read frames to 1 due to the header frame we will never write
 			written_frames: 1,
-			created_files: std::boxed::Box::new(std::collections::HashSet::new())
+			created_files: std::boxed::Box::new(std::collections::HashSet::new()),
 		})
 	}
 
@@ -145,7 +145,7 @@ impl crate::output::SignalOutput for SignalOutputRaw {
 			.sqlite_connection
 			.prepare_cached(statement)
 			.with_context(|| format!("failed to prepare database statement: {}", statement))?;
-		stmt.execute(parameters)
+		stmt.execute(rusqlite::params_from_iter(parameters))
 			.with_context(|| format!("failed to execute database statement: {}", statement))?;
 
 		self.written_frames += 1;
@@ -244,7 +244,10 @@ impl crate::output::SignalOutput for SignalOutputRaw {
 		Ok(())
 	}
 
-	fn write_key_value(&mut self, _key_value: &crate::Backups::KeyValue) ->  Result<(), anyhow::Error>{
+	fn write_key_value(
+		&mut self,
+		_key_value: &crate::Backups::KeyValue,
+	) -> Result<(), anyhow::Error> {
 		self.written_frames += 1;
 		Ok(())
 	}
@@ -263,7 +266,7 @@ impl crate::output::SignalOutput for SignalOutputRaw {
 		self.sqlite_connection
 			.execute(
 				&format!("VACUUM INTO \"{}\";", path_sqlite.to_string_lossy()),
-				rusqlite::NO_PARAMS,
+				[],
 			)
 			.with_context(|| {
 				format!(

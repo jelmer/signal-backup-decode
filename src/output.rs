@@ -26,7 +26,10 @@ pub trait SignalOutput: Send {
 
 	fn write_version(&mut self, version: u32) -> Result<(), anyhow::Error>;
 
-	fn write_key_value(&mut self, key_value: &crate::Backups::KeyValue) ->  Result<(), anyhow::Error>;
+	fn write_key_value(
+		&mut self,
+		key_value: &crate::Backups::KeyValue,
+	) -> Result<(), anyhow::Error>;
 
 	fn get_written_frames(&self) -> usize;
 

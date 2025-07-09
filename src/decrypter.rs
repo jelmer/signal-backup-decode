@@ -1,5 +1,4 @@
-use hmac::crypto_mac::Mac;
-use hmac::crypto_mac::NewMac;
+use hmac::Mac;
 use openssl;
 use sha2::Digest;
 use subtle::ConstantTimeEq;
@@ -10,6 +9,7 @@ pub const LENGTH_HMAC: usize = 10;
 /// Decrypt bytes
 pub struct Decrypter {
 	mac: Option<hmac::Hmac<sha2::Sha256>>,
+	mac_key: Option<Vec<u8>>,
 	key: Vec<u8>,
 	iv: Vec<u8>,
 }
@@ -36,7 +36,12 @@ impl Decrypter {
 		// create hmac and cipher
 		Self {
 			mac: if verify_mac {
-				Some(hmac::Hmac::<sha2::Sha256>::new_varkey(&okm[32..]).unwrap())
+				Some(hmac::Hmac::<sha2::Sha256>::new_from_slice(&okm[32..]).unwrap())
+			} else {
+				None
+			},
+			mac_key: if verify_mac {
+				Some(okm[32..].to_vec())
 			} else {
 				None
 			},
@@ -72,8 +77,9 @@ impl Decrypter {
 
 	pub fn verify_mac(&mut self, hmac_control: &[u8]) -> Result<(), DecryptError> {
 		if let Some(ref mut hmac) = self.mac {
-			let result = hmac.finalize_reset();
-			let code_bytes = &result.into_bytes()[..LENGTH_HMAC];
+			let result = hmac.clone().finalize();
+			let result_bytes = result.into_bytes();
+			let code_bytes = &result_bytes[..LENGTH_HMAC];
 
 			// compare to given hmac
 			let result = code_bytes.ct_eq(&hmac_control);
@@ -83,6 +89,11 @@ impl Decrypter {
 					their_mac: hmac_control.to_vec(),
 					our_mac: code_bytes.to_vec(),
 				});
+			}
+
+			// Create a new HMAC for next use
+			if let Some(ref key) = self.mac_key {
+				*hmac = hmac::Hmac::<sha2::Sha256>::new_from_slice(key).unwrap();
 			}
 		}
 
@@ -136,6 +147,7 @@ mod tests {
 		// test increase at position 3
 		let mut dec = Decrypter {
 			mac: None,
+			mac_key: None,
 			key: key.to_vec(),
 			iv: iv.to_vec(),
 		};
@@ -149,6 +161,7 @@ mod tests {
 		iv[2] = 255;
 		let mut dec = Decrypter {
 			mac: None,
+			mac_key: None,
 			key: key.to_vec(),
 			iv: iv.to_vec(),
 		};

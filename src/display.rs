@@ -9,10 +9,10 @@ pub struct Progress {
 impl Progress {
 	pub fn new(bytes_to_read: u64, frames_to_read: u64, hidden: bool) -> Self {
 		let sty_bytes = indicatif::ProgressStyle::default_bar()
-                    .template("             Bytes read: [{elapsed_precise}] [{bar:50.blue/blue}] {bytes}/{total_bytes}")
+                    .template("             Bytes read: [{elapsed_precise}] [{bar:50.blue/blue}] {bytes}/{total_bytes}").unwrap()
                     .progress_chars("#>-");
 		let sty_frames = indicatif::ProgressStyle::default_bar()
-                    .template("Read vs. written frames: [{elapsed_precise}] [{bar:50.cyan/cyan}] {pos:>5}/{len:5}")
+                    .template("Read vs. written frames: [{elapsed_precise}] [{bar:50.cyan/cyan}] {pos:>5}/{len:5}").unwrap()
                     .progress_chars("#>-");
 
 		let bar_multi = indicatif::MultiProgress::new();
@@ -56,17 +56,17 @@ impl Progress {
 
 	pub fn finish_frames(&self) {
 		if let Some(ref x) = self.bar_frames {
-			x.finish_at_current_pos()
+			x.finish_and_clear()
 		};
 	}
 
 	pub fn finish_bytes(&self) {
 		if let Some(ref x) = self.bar_bytes {
-			x.finish_at_current_pos()
+			x.finish_and_clear()
 		};
 	}
 
 	pub fn finish_multi(&self) {
-		self.bar_multi.join().unwrap();
+		self.bar_multi.clear().unwrap();
 	}
 }
